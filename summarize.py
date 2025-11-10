@@ -18,6 +18,7 @@ from pyutil.progress import progress
 from collections import namedtuple
 from binascii import *
 import sys
+import curses
 import time
 import tempfile
 import os
@@ -70,7 +71,7 @@ CAPSTONE = "capstone"
 
 # many disassemblers break all or unexpected prefixes onto separate lines,
 # we need to combine these into one instruction for meaningful results
-disassemblers: Dict[str, DisassemblerConfig] = {
+disassemblers: Dict[str, dict] = {
     CAPSTONE: {"check_supported": False, 32: None, 64: None},
     "ndisasm": {
         "check_supported": True,
@@ -152,21 +153,7 @@ disassemblers: Dict[str, DisassemblerConfig] = {
     },
 }
 
-class DisassemblerConfig:
-    def __init__(self, check_supported: bool, arch32: Optional[Tuple[str, str]], arch64: Optional[Tuple[str, str]]):
-        self.check_supported = check_supported
-        self.arch32 = arch32
-        self.arch64 = arch64
-
-    def __getitem__(self, key):
-        if key == 32:
-            return self.arch32
-        elif key == 64:
-            return self.arch64
-        elif key == "check_supported":
-            return self.check_supported
-        else:
-            raise KeyError(key)
+Architecture = Literal[32, 64]
 
 supported = {}
 
@@ -207,7 +194,7 @@ md_32 = Cs(CS_ARCH_X86, CS_MODE_32)
 md_64 = Cs(CS_ARCH_X86, CS_MODE_64)
 
 
-def disassemble_capstone(arch: Literal[32, 64], data):
+def disassemble_capstone(arch: Architecture, data: bytes) -> Tuple[str, str]:
     if arch == 32:
         m = md_32
     elif arch == 64:
@@ -291,7 +278,7 @@ class Processor(object):
     model_name = "n/a"
     stepping = "n/a"
     microcode = "n/a"
-    architecture = 32
+    architecture: Architecture = 32
 
 
 class Catalog(object):
@@ -322,14 +309,16 @@ class Catalog(object):
         self.prefixes = prefixes
 
 
-def check_disassembler(name):
+def check_disassembler(name: str) -> bool:
     result, errors = subprocess.Popen(
         ["which", name], stdout=subprocess.PIPE, stderr=subprocess.PIPE
     ).communicate()
     return result.strip() != ""
 
 
-def disassemble(disassembler, bitness, data):
+def disassemble(
+    disassembler: str, bitness: int, data: bytes
+) -> Tuple[Optional[bytes], Optional[bytes]]:
     if supported[disassembler] and disassemblers[disassembler][bitness]:
         temp_file = tempfile.NamedTemporaryFile()
         temp_file.write(data)
@@ -361,18 +350,18 @@ def disassemble(disassembler, bitness, data):
         return (None, None)
 
 
-def cleanup(disas):
+def cleanup(disas: bytes) -> bytes:
     disas = disas.strip()
     disas = disas.replace(b",", b", ")
     disas = b" ".join(disas.split())
     return disas
 
 
-def instruction_length(raw):
+def instruction_length(raw: bytes) -> int:
     return len(raw) // 2
 
 
-def print_catalog(c, depth=0):
+def print_catalog(c: Catalog, depth: int = 0):
     for v in c.v:
         print("  " * (depth) + hexlify(v.raw).decode() + " " + summarize_prefixes(v))
     for k in c.d:
@@ -380,13 +369,13 @@ def print_catalog(c, depth=0):
         print_catalog(c.d[k], depth + 1)
 
 
-def strip_prefixes(i, prefixes):
+def strip_prefixes(i: bytes, prefixes: list[int]) -> bytes:
     while i and i[0] in prefixes:
         i = i[1:]
     return i
 
 
-def get_prefixes(i, prefixes):
+def get_prefixes(i: bytes, prefixes: list[int]) -> set:
     p = set()
     for b in i:
         if b in prefixes:
@@ -729,7 +718,13 @@ if __name__ == "__main__":
             )
             line = line + 1
             gui.window.addstr(
-                line, infobox_x + 2, "%s" % hexlify(o.example).decode(), gui.gray(0.8)
+                line,
+                infobox_x + 2,
+                "%s"
+                % hexlify(
+                    o.example if isinstance(o.example, bytes) else o.example.encode()
+                ).decode(),
+                gui.gray(0.8),
             )
             line = line + 1
 
@@ -867,6 +862,18 @@ if __name__ == "__main__":
                 line = line + 1
 
     while True:
+        # Show an error if the window is too small
+        if gui.window.getmaxyx()[0] < 40 or gui.window.getmaxyx()[1] < 100:
+            gui.window.clear()
+            gui.window.addstr(
+                1,
+                1,
+                "Please resize your terminal window to at least 100x40.",
+                curses.color_pair(gui.RED),
+            )
+            gui.refresh()
+            time.sleep(0.5)
+            continue
 
         detail_string = (
             "arch: %d / processor: %s / vendor: %s / family: %s / "
@@ -886,15 +893,18 @@ if __name__ == "__main__":
 
         textbox.draw()
 
-        draw_infobox(gui, lookup[textbox.selected_index])
+        try:
+            draw_infobox(gui, lookup[textbox.selected_index])
 
-        gui.window.addstr(33, 1, "↓: down,     →: DOWN", gui.gray(0.4))
-        gui.window.addstr(34, 1, "↑: up,       ←: UP", gui.gray(0.4))
-        gui.window.addstr(35, 1, "↵: expand    L: all", gui.gray(0.4))
-        gui.window.addstr(36, 1, "↵: collapse  H: all", gui.gray(0.4))
-        gui.window.addstr(37, 1, "g: start     G: end", gui.gray(0.4))
-        gui.window.addstr(38, 1, "{: previous  }: next", gui.gray(0.4))
-        gui.window.addstr(39, 1, "q: quit and print", gui.gray(0.4))
+            gui.window.addstr(33, 1, "↓: down,     →: DOWN", gui.gray(0.4))
+            gui.window.addstr(34, 1, "↑: up,       ←: UP", gui.gray(0.4))
+            gui.window.addstr(35, 1, "↵: expand    L: all", gui.gray(0.4))
+            gui.window.addstr(36, 1, "↵: collapse  H: all", gui.gray(0.4))
+            gui.window.addstr(37, 1, "g: start     G: end", gui.gray(0.4))
+            gui.window.addstr(38, 1, "{: previous  }: next", gui.gray(0.4))
+            gui.window.addstr(39, 1, "q: quit and print", gui.gray(0.4))
+        except curses.error:
+            pass
 
         gui.refresh()
 
