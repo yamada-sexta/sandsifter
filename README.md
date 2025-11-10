@@ -13,6 +13,8 @@ hypervisors; and both benign and security-critical hardware bugs in x86 chips.
 With the multitude of x86 processors in existence, the goal of the tool is to
 enable users to check their own systems for hidden instructions and bugs.
 
+> Remember to disable SELinux with `setenforce 0` before running the tool, as it may interfere with the injection process.
+
 To run a basic audit against your processor:
 
 ```
