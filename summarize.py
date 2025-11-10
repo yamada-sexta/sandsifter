@@ -861,6 +861,19 @@ if __name__ == "__main__":
 
                 line = line + 1
 
+    import signal
+
+    # setup an error handler when the user exists the GUI
+    def handle_exit(signum, frame):
+        os.system("clear")
+        # Disable cursor raw mode
+        curses.curs_set(1)
+        
+        print("Exiting...")
+        exit(0)
+
+    signal.signal(signal.SIGINT, handle_exit)
+
     while True:
         # Show an error if the window is too small
         if gui.window.getmaxyx()[0] < 40 or gui.window.getmaxyx()[1] < 100:
