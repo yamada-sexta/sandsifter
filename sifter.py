@@ -124,7 +124,7 @@ class Tee(object):
 md = None
 
 
-def disas_capstone(b):
+def disas_capstone(b: bytes):
     global md, arch
     if not md:
         if arch == "64":
@@ -253,14 +253,13 @@ def result_string(insn, result):
 
 class Injector:
     process: Optional[subprocess.Popen] = None
-    settings: Optional[Settings] = None
+    settings: Settings
     command: Optional[str] = None
 
     def __init__(self, settings: Settings):
         self.settings = settings
 
     def start(self):
-        assert self.settings is not None, "Settings not initialized"
         self.command = "%s %s -%c -R %s -s %d" % (
             INJECTOR,
             " ".join(self.settings.args),
@@ -346,9 +345,9 @@ class Poll:
             while self.ts.pause:
                 time.sleep(0.1)
             assert self.injector is not None, "Injector not initialized"
-			# assert self.injector.process is not None, "Injector process not started"
-			# assert self.injector.process.stdout is not None, "Injector process stdout not available"
-            bytes_polled = self.injector.process.stdout.readinto(self.T.r) # type: ignore
+            # assert self.injector.process is not None, "Injector process not started"
+            # assert self.injector.process.stdout is not None, "Injector process stdout not available"
+            bytes_polled = self.injector.process.stdout.readinto(self.T.r)  # type: ignore
 
             if bytes_polled == sizeof(self.T.r):
                 self.T.ic = self.T.ic + 1
@@ -422,7 +421,14 @@ class Gui:
     COLOR_RED = 19
     COLOR_GREEN = 20
 
-    def __init__(self, ts, injector, tests, do_tick, disassembler=disas_capstone):
+    def __init__(
+        self,
+        ts: ThreadState,
+        injector: Injector,
+        tests: Tests,
+        do_tick: bool,
+        disassembler=disas_capstone,
+    ):
         self.ts = ts
         self.injector = injector
         self.T = tests
@@ -502,7 +508,7 @@ class Gui:
         curses.init_pair(self.RED, self.COLOR_RED, self.COLOR_BLACK)
         curses.init_pair(self.GREEN, self.COLOR_GREEN, self.COLOR_BLACK)
 
-    def gray(self, scale):
+    def gray(self, scale: float):
         if curses.can_change_color():
             return curses.color_pair(
                 self.GRAY_BASE + int(round(scale * (self.GRAYS - 1)))
@@ -510,7 +516,7 @@ class Gui:
         else:
             return curses.color_pair(self.WHITE)
 
-    def box(self, window, x, y, w, h, color):
+    def box(self, window: curses.window, x: int, y: int, w: int, h: int, color: int):
         for i in range(1, w - 1):
             window.addch(y, x + i, curses.ACS_HLINE, color)
             window.addch(y + h - 1, x + i, curses.ACS_HLINE, color)
@@ -522,13 +528,13 @@ class Gui:
         window.addch(y + h - 1, x, curses.ACS_LLCORNER, color)
         window.addch(y + h - 1, x + w - 1, curses.ACS_LRCORNER, color)
 
-    def bracket(self, window, x, y, h, color):
+    def bracket(self, window: curses.window, x: int, y: int, h: int, color: int):
         for i in range(1, h - 1):
             window.addch(y + i, x, curses.ACS_VLINE, color)
         window.addch(y, x, curses.ACS_ULCORNER, color)
         window.addch(y + h - 1, x, curses.ACS_LLCORNER, color)
 
-    def vaddstr(self, window, x, y, s, color):
+    def vaddstr(self, window: curses.window, x: int, y: int, s: str, color: int):
         for i in range(0, len(s)):
             window.addch(y + i, x, s[i], color)
 
@@ -656,12 +662,12 @@ class Gui:
                     self.T.elapsed(),
                     self.gray(0.5),
                 )
-
             # render injection settings
             self.stdscr.addstr(
                 top + 1, left - 8, "%d" % self.injector.settings.root, self.gray(0.1)
             )
             self.stdscr.addstr(top + 1, left - 7, "%s" % arch, self.gray(0.1))
+
             self.stdscr.addstr(
                 top + 1,
                 left - 3,
