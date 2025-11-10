@@ -336,6 +336,8 @@ class Poll:
     def stop(self):
         if self.poll_thread:
             self.poll_thread.join()
+        else:
+            raise RuntimeError("Poll thread not started")
         while self.ts.run:
             time.sleep(0.1)
 
@@ -390,6 +392,8 @@ class Poll:
                             with open(SYNC, "a") as f:
                                 f.write(result_string(insn, self.T.r))
             else:
+                if self.injector.process is None:
+                    raise RuntimeError("Injector process not started")
                 if self.injector.process.poll() is not None:
                     self.ts.run = False
                     break
@@ -442,7 +446,8 @@ class Gui:
         curses.noecho()
         curses.cbreak()
         curses.curs_set(0)
-        self.stdscr.nodelay(1)
+        # self.stdscr.nodelay(1)
+        self.stdscr.nodelay(True)
 
         self.sx = 0
         self.sy = 0
