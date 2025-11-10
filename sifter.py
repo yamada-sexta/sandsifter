@@ -7,13 +7,15 @@
 #
 
 # run as sudo for best results
+from ctypes import Structure, c_int, c_ubyte, sizeof
 from typing import Optional
 import signal
 import sys
 import subprocess
 import os
-from struct import *
-from capstone import *
+
+# from struct import *
+# from capstone import *
 from collections import namedtuple
 from collections import deque
 import threading
@@ -25,7 +27,10 @@ import random
 import argparse
 import code
 import copy
-from ctypes import *
+
+from capstone import CS_ARCH_X86, CS_MODE_32, CS_MODE_64, Cs
+
+# from ctypes import *
 
 INJECTOR = "./injector"
 arch = ""
