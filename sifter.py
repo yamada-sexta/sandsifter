@@ -64,7 +64,7 @@ class Settings:
     seed = 0
     args = ""
 
-    def __init__(self, args):
+    def __init__(self, args: argparse.Namespace):
         if "-r" in args:
             self.synth_mode = self.SYNTH_MODE_RANDOM
         elif "-b" in args:
@@ -224,10 +224,11 @@ def disas_objdump(b):
 
 def cstr2py(s):
     return "".join([chr(x) for x in s])
+    # return bytes(bytearray(s))
 
 
 # targeting python 2.6 support
-def int_to_comma(x):
+def int_to_comma(x: int) -> str:
     if type(x) not in [type(0), type(0)]:
         raise TypeError("Parameter must be an integer.")
     if x < 0:
@@ -239,7 +240,7 @@ def int_to_comma(x):
     return "%d%s" % (x, result)
 
 
-def result_string(insn, result):
+def result_string(insn: bytes, result: InjectorResults) -> str:
     s = "%30s %2d %2d %2d %2d (%s)\n" % (
         hexlify(insn).decode(),
         result.valid,
@@ -836,17 +837,19 @@ def get_cpu_info():
     return cpu
 
 
-def dump_artifacts(r, injector, command_line):
+def dump_artifacts(r: Tests, injector: Optional[Injector], command_line: str):
     global arch
     tee = Tee(LOG, "w")
     tee.write("#\n")
     tee.write("# %s\n" % command_line)
-    tee.write("# %s\n" % injector.command)
+    tee.write("# %s\n" % injector.command if injector else "[no injector]")
     tee.write("#\n")
     tee.write("# insn tested: %d\n" % r.ic)
     tee.write("# artf found:  %d\n" % r.ac)
     tee.write("# runtime:     %s\n" % r.elapsed())
-    tee.write("# seed:        %d\n" % injector.settings.seed)
+    tee.write(
+        "# seed:        %d\n" % injector.settings.seed if injector else "[no injector]"
+    )
     tee.write("# arch:        %s\n" % arch)
     tee.write("# date:        %s\n" % time.strftime("%Y-%m-%d %H:%M:%S"))
     tee.write("#\n")
@@ -862,7 +865,15 @@ def dump_artifacts(r, injector, command_line):
         tee.write(result_string(k, v))
 
 
-def cleanup(gui, poll, injector, ts, tests, command_line, args):
+def cleanup(
+    gui: Optional[Gui],
+    poll: Optional[Poll],
+    injector: Optional[Injector],
+    ts: ThreadState,
+    tests: Tests,
+    command_line: str,
+    args: argparse.Namespace,
+):
     ts.run = False
     if gui:
         gui.stop()
@@ -894,7 +905,7 @@ def cleanup(gui, poll, injector, ts, tests, command_line, args):
 def main():
     global arch
 
-    def exit_handler(signal, frame):
+    def exit_handler(signal: int, frame):
         cleanup(gui, poll, injector, ts, tests, command_line, args)
 
     injector = None
