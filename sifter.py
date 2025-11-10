@@ -67,9 +67,9 @@ class Settings:
     synth_mode = SYNTH_MODE_RANDOM
     root = False
     seed = 0
-    args = ""
+    # args = ""
 
-    def __init__(self, args: argparse.Namespace):
+    def __init__(self, args):
         if "-r" in args:
             self.synth_mode = self.SYNTH_MODE_RANDOM
         elif "-b" in args:
@@ -268,7 +268,7 @@ class Injector:
     def start(self):
         self.command = "%s %s -%c -R %s -s %d" % (
             INJECTOR,
-            " ".join(self.settings.args),
+            " ".join(list(self.settings.args)),
             self.settings.synth_mode,
             "-0" if self.settings.root else "",
             self.settings.seed,
